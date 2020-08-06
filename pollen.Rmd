@@ -1,0 +1,165 @@
+---
+title: "Polen Open Data"
+author: "Momir Milutinovic"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE, message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      include=TRUE,
+                      prompt = TRUE,
+                      message = FALSE,
+                      warning = FALSE,
+                      fig.height = 5,
+                      fig.width = 7,
+                      cache = FALSE)
+```
+
+This is a data analysis report about the pollen levels in Belgrade with the explanation of the R code used. Data that will be used for the analysis comes from the [pollen API](http://polen.sepa.gov.rs/api/opendata/schema), which is maintained by the [Environmental Protection Agency](http://sepa.gov.rs).
+
+# Reading and organising data
+We will start by reading in the data.
+
+```{r}
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(leaflet))
+suppressPackageStartupMessages(library(lubridate))
+library(caret)
+library(tidyquant)
+
+mydata <- read.csv("pollenDataMore.csv",
+                   header = T,
+                   stringsAsFactors = FALSE
+                   )
+```
+
+Let's what we have here.
+```{r}
+glimpse(mydata)
+```
+We don't really need the X and id columns at all.
+```{r}
+mydata <- mydata[,-c(1, 2)]
+glimpse(mydata)
+```
+That's better!
+We will check how many unique records each variable in our data has.
+```{r}
+(uniq <- unlist(lapply(mydata, function(x) length(unique(x)))))
+```
+There are 26 stations, of which only two are in Belgrade. We can see that there are more stations than unique geographic coordinate values. This is due to the location of some stations being 0,0 for reasons beyond our control. They are on the second page.
+```{r}
+print(unique(mydata[, c("location_name", "lat", "long")]))
+```
+However, none of them are in Belgrade. The two stations in Belgrade are *БЕОГРАД - ЗЕЛЕНО БРДО* and *БЕОГРАД - НОВИ БЕОГРАД* and we will only pay attention to the data from these two stations.
+
+```{r, echo=FALSE}
+mydata <- mydata %>% filter(location_name == c("БЕОГРАД - НОВИ БЕОГРАД"))
+```
+
+```{r, echo=FALSE}
+ggplot(mydata, aes(x = allergen_name, colour = as.factor(allergen_name), fill = as.factor(allergen_name))) +
+  geom_bar() +
+  xlab("Allergen") +
+  ylab("Count")
+```
+
+We seem to have almost even numbers of data points for each allegen.
+
+```{r, echo=FALSE}
+ggplot(mydata, aes(x = as.Date(date))) +
+  geom_histogram(postion = "dodge")
+```
+The more recent data seems to be more sparse, but we won't be dealing with that here.
+
+We will take a look at only the ambrosia data since different allergens might have different distributions as pictured above.
+```{r}
+mydata <- mydata %>% filter(allergen_name == "URTICACEAE")
+```
+
+### Formatting date and time
+
+Separate the year, month and day into separate columns
+```{r}
+  mydata$date <- as.Date(mydata$date)
+  mydata <- mydata %>% mutate(year = lubridate::year(date))  %>%
+    mutate(month = lubridate::month(date)) %>% 
+    mutate(day = lubridate::day(date))
+```
+
+### Adding next day
+```{r}
+  mydata <- mydata %>% arrange(date)
+  mydata <- mydata %>% mutate(next_day = rollapply(mydata$value, width = 2, FUN = sum, fill = NA) - mydata$value)
+  # Remove last row that will have NA for next day
+  mydata <- mydata[is.na(mydata$next_day) == FALSE,]
+```
+
+# Analysing the readings
+
+
+We will take a look at only the ambrosia data since different allergens might have different distributions as pictured above.
+```{r, echo=FALSE}
+
+ggplot(mydata, aes(as.Date(date), value)) + 
+  geom_point() +
+  xlab("Date") +
+  ylab("Concentration") +
+  ggtitle("Concentration of AMBROSIA over time")
+```
+
+We can see some evenly spaced spikes. This is to be expected since there are pollen seasons during a year.
+
+Let's see the distribution of the concentration
+```{r, echo=FALSE}
+  ggplot(filter(mydata, allergen_name == "AMBROSIA"), aes(x = value)) + 
+    geom_histogram()
+```
+
+As is confirmed by the previous plot, we have lots of small values. This might be a problem for some learning algorithms.
+
+
+## Data enrichment
+Remove dummy variables
+```{r}
+mydata <- mydata %>% select(-c(allergen_name, localized_name, lat, long, location_name))
+```
+
+We'll add weather data.
+```{r}
+weather <- read.csv("wunderground.csv", stringsAsFactors = FALSE)
+weather$date <- as.Date(weather$date)
+#weather <- weather %>% select(c(DATE, TAVG, PRCP, TMIN, TMAX))
+  
+
+mydata <- mydata %>% inner_join(weather, by=c("date" = "date"))
+```
+
+## Baseline model
+
+
+### Train-Validation-Test split
+```{r}
+  #mydata <- mydata[93:643,]
+  train_end <- round(0.6 * nrow(mydata))
+  valid_end <- train_end + round(0.2 * nrow(mydata))
+  train <- mydata[1:train_end,]
+  valid <- mydata[(train_end+1):valid_end, ]
+  test <- mydata[(valid_end+1):nrow(mydata),]
+```
+
+
+
+
+Export the split data
+```{r}
+  #write.csv(train, "train.csv")
+  #write.csv(valid, "valid.csv")
+  #write.csv(test, "test.csv")
+```
