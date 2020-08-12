@@ -32,6 +32,7 @@ suppressPackageStartupMessages(library(leaflet))
 suppressPackageStartupMessages(library(lubridate))
 library(caret)
 library(tidyquant)
+library(RWeka)
 
 mydata <- read.csv("pollenDataMore.csv",
                    header = T,
@@ -60,7 +61,18 @@ print(unique(mydata[, c("location_name", "lat", "long")]))
 However, none of them are in Belgrade. The two stations in Belgrade are *БЕОГРАД - ЗЕЛЕНО БРДО* and *БЕОГРАД - НОВИ БЕОГРАД* and we will only pay attention to the data from these two stations.
 
 ```{r, echo=FALSE}
-mydata <- mydata %>% filter(location_name == c("БЕОГРАД - НОВИ БЕОГРАД"))
+ggplot(mydata, aes(x=location_name,  colour = as.factor(location_name), fill = as.factor(location_name))) +
+  geom_bar()
+```
+
+```{r}
+  counts <- mydata %>% group_by(location_name, allergen_name)
+  summarise(counts, rows = n()) %>% arrange(desc(rows))
+```
+
+
+```{r, echo=FALSE}
+mydata <- mydata %>% filter(location_name == c("БЕОГРАД - ЗЕЛЕНО БРДО"))
 ```
 
 ```{r, echo=FALSE}
@@ -96,8 +108,24 @@ Separate the year, month and day into separate columns
 ### Adding next day
 ```{r}
   mydata <- mydata %>% arrange(date)
-  mydata <- mydata %>% mutate(next_day = rollapply(mydata$value, width = 2, FUN = sum, fill = NA) - mydata$value)
+  mydata <- mydata %>% mutate(next_day = NA)
   # Remove last row that will have NA for next day
+
+
+  # Add the next day's concentration to the next_day column of there is data for the next day
+  # Otherwise set the value to NA
+  for(i in 1:(nrow(mydata) - 1)) {
+    next_day <- mydata[i + 1,]
+
+    if(as.Date(next_day$date) == (as.Date(mydata[i,]$date) + 1)) {
+      mydata[i,]$next_day <- next_day$value
+    }
+    else {
+      mydata[i,]$next_day <- NA
+    }
+
+  }
+
   mydata <- mydata[is.na(mydata$next_day) == FALSE,]
 ```
 
@@ -111,14 +139,14 @@ ggplot(mydata, aes(as.Date(date), value)) +
   geom_point() +
   xlab("Date") +
   ylab("Concentration") +
-  ggtitle("Concentration of AMBROSIA over time")
+  ggtitle("Concentration of URTICACEAE over time")
 ```
 
 We can see some evenly spaced spikes. This is to be expected since there are pollen seasons during a year.
 
 Let's see the distribution of the concentration
 ```{r, echo=FALSE}
-  ggplot(filter(mydata, allergen_name == "AMBROSIA"), aes(x = value)) + 
+  ggplot(mydata, aes(x = value)) + 
     geom_histogram()
 ```
 
@@ -135,10 +163,14 @@ We'll add weather data.
 ```{r}
 weather <- read.csv("wunderground.csv", stringsAsFactors = FALSE)
 weather$date <- as.Date(weather$date)
-#weather <- weather %>% select(c(DATE, TAVG, PRCP, TMIN, TMAX))
-  
-
 mydata <- mydata %>% inner_join(weather, by=c("date" = "date"))
+
+weather <- read.csv("weather.csv", stringsAsFactors = FALSE)
+weather <- weather %>% select(c(DATE, PRCP))
+weather$DATE <- as.Date(weather$DATE)
+mydata <- mydata %>% inner_join(weather, by=c("date" = "DATE"))
+mydata$PRCP[is.na(mydata$PRCP)] <- 0
+
 ```
 
 ## Baseline model
@@ -146,7 +178,6 @@ mydata <- mydata %>% inner_join(weather, by=c("date" = "date"))
 
 ### Train-Validation-Test split
 ```{r}
-  #mydata <- mydata[93:643,]
   train_end <- round(0.6 * nrow(mydata))
   valid_end <- train_end + round(0.2 * nrow(mydata))
   train <- mydata[1:train_end,]
@@ -155,7 +186,43 @@ mydata <- mydata %>% inner_join(weather, by=c("date" = "date"))
 ```
 
 
+```{r}
+mydata <- mydata %>% select(-c(date, Total_percipitation))
+ctrl <- trainControl(method = "repeatedcv", repeats = 3)
+model <- train(next_day ~ .,
+               data=mydata,
+               method='lm',
+               trControl = ctrl,
+               metric = 'RMSE',
+               preProcess=c("center","scale"))
 
+model
+```
+
+```{r}
+ctrl <- trainControl(method = "repeatedcv", repeats = 3)
+model <- train(next_day ~ .,
+               data=mydata,
+               method='glmboost',
+               trControl = ctrl,
+               metric = 'RMSE',
+               preProcess=c("center","scale"))
+
+model
+```
+
+
+```{r}
+# ctrl <- trainControl(method = "repeatedcv", repeats = 3)
+# model <- train(next_day ~ .,
+#                data=mydata,
+#                method='bstTree',
+#                trControl = ctrl,
+#                metric = 'RMSE',
+#                preProcess=c("center","scale"))
+# 
+# model
+```
 
 Export the split data
 ```{r}
