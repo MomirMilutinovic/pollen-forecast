@@ -34,7 +34,7 @@ library(caret)
 library(tidyquant)
 library(RWeka)
 
-mydata <- read.csv("pollenDataMore.csv",
+mydata <- read.csv("data/pollenDataMore.csv",
                    header = T,
                    stringsAsFactors = FALSE
                    )
@@ -165,11 +165,11 @@ mydata <- mydata %>% select(-c(allergen_name, localized_name, lat, long, locatio
 
 We'll add weather data.
 ```{r}
-weather <- read.csv("wunderground.csv", stringsAsFactors = FALSE)
+weather <- read.csv("data/wunderground.csv", stringsAsFactors = FALSE)
 weather$date <- as.Date(weather$date)
 mydata <- mydata %>% inner_join(weather, by=c("date" = "date"))
 
-weather <- read.csv("weather.csv", stringsAsFactors = FALSE)
+weather <- read.csv("data/weather.csv", stringsAsFactors = FALSE)
 weather <- weather %>% select(c(DATE, PRCP))
 weather$DATE <- as.Date(weather$DATE)
 mydata <- mydata %>% inner_join(weather, by=c("date" = "DATE"))
@@ -227,9 +227,9 @@ baseline.treebag
 
 Export the split data
 ```{r}
-  #write.csv(train, "train.csv")
-  #write.csv(valid, "valid.csv")
-  #write.csv(test, "test.csv")
+  #write.csv(train, "data/train.csv")
+  #write.csv(valid, "data/valid.csv")
+  #write.csv(test, "data/test.csv")
 ```
 
 ## Feature engineering
@@ -354,12 +354,7 @@ encodedDay.xgbTree
 
 ```{r}
 set.seed(8)
-encodedDay.M5 <- train(next_day ~ .,
-               data=mydata,
-               method='M5',
-               trControl = ctrl,
-               metric = 'RMSE',
-               preProcess=c("center","scale"))
+encodedDay.M5 <- trainModel(mydata, 'M5')
 
 encodedDay.M5
 ```
