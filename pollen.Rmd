@@ -90,7 +90,18 @@ ggplot(mydata, aes(x = as.Date(date))) +
 ```
 The more recent data seems to be more sparse, but we won't be dealing with that here.
 
+```{r}
+  mydata %>% 
+  filter(allergen_name %in% c("URTICACEAE", "PLATANGO")) %>%
+  ggplot(aes(as.Date(date), value, colour=as.factor(allergen_name))) + 
+    geom_point() +
+    xlab("Date") +
+    ylab("Concentration") +
+    ggtitle("Concentration of URTICACEAE over time")
+```
+
 We will take a look at only the ambrosia data since different allergens might have different distributions as pictured above.
+
 ```{r}
 mydata <- mydata %>% filter(allergen_name == "URTICACEAE")
 ```
@@ -195,35 +206,23 @@ mydata <- mydata %>% select(-X)
 
 ```{r}
 mydata <- mydata %>% select(-c(date, Total_percipitation))
-ctrl <- trainControl(method = "repeatedcv", repeats = 3)
+algorithms <- c('svmLinear', 'xgbTree', 'rf', 'brnn', 'bayesglm', 'treebag', 'lm')
 
 trainModel <- function(data, method) {
+  set.seed(8)
   train(next_day ~ .,
     data=data,
     method=method,
-    trControl = ctrl,
+    trControl = trainControl(method = "cv", number = 5),
     metric = 'RMSE',
-    preProcess=c("center","scale"))
+    preProcess=c("center","scale")
+  )
+
 }
 
-set.seed(8)
-baseline.lm <- trainModel(mydata, 'lm')
-baseline.lm
+baseline.models <- lapply(algorithms, trainModel, data = mydata)
 ```
 
-```{r}
-set.seed(8)
-baseline.glmboost <- trainModel(mydata, 'glmboost')
-
-baseline.glmboost
-```
-
-```{r}
-set.seed(8)
-baseline.treebag <- trainModel(mydata, 'treebag')
-
-baseline.treebag
-```
 
 Export the split data
 ```{r}
@@ -247,24 +246,7 @@ Let's add columns that depict the change in temperature, pressure, etc.
 
 
 ```{r}
-set.seed(8)
-delta.lm <- trainModel(mydata, 'lm')
-
-delta.lm
-```
-
-```{r}
-set.seed(8)
-delta.glmboost <- trainModel(mydata, 'glmboost')
-
-delta.glmboost
-```
-
-```{r}
-set.seed(8)
-delta.treebag <- trainModel(mydata, 'treebag')
-
-delta.treebag
+delta.models <- lapply(algorithms, trainModel, data = mydata)
 ```
 
 ### Day encoding
@@ -277,91 +259,9 @@ mydata <- mydata %>% select(-c(year,month,day))
 
 
 ### Retrain
-```{r}
-set.seed(8)
-encodedDay.lm <- trainModel(mydata, 'lm')
-
-encodedDay.lm
-```
 
 ```{r}
-set.seed(8)
-encodedDay.glmboost <- trainModel(mydata, 'glmboost')
+algorithms <- c('svmLinear', 'xgbTree', 'rf', 'brnn', 'bayesglm', 'treebag', 'lm')
 
-encodedDay.glmboost
-```
-
-```{r}
-set.seed(8)
-encodedDay.treebag <- trainModel(mydata, 'treebag')
-
-encodedDay.treebag
-```
-
-```{r}
-set.seed(8)
-
-encodedDay.bagEarth <- trainModel(mydata, 'bagEarth')
-encodedDay.bagEarth
-```
-
-```{r}
-set.seed(8)
-encodedDay.bagEarthGCV<- trainModel(mydata, 'bagEarthGCV')
-
-encodedDay.bagEarthGCV
-```
-
-```{r}
-set.seed(8)
-encodedDay.bartMachine <- trainModel(mydata, 'bartMachine')
-
-encodedDay.bartMachine
-```
-
-```{r}
-set.seed(8)
-encodedDay.bayesglm <- trainModel(mydata, 'bayesglm')
-
-encodedDay.bayesglm
-```
-
-```{r}
-set.seed(8)
-encodedDay.brnn <- trainModel(mydata, 'brnn')
-
-encodedDay.brnn
-```
-
-```{r}
-set.seed(8)
-encodedDay.rf <- train(next_day ~ .,
-               data=mydata,
-               method='rf',
-               trControl = ctrl,
-               metric = 'RMSE',
-               preProcess=c("center","scale"))
-
-encodedDay.rf
-```
-
-```{r}
-set.seed(8)
-encodedDay.xgbTree <-trainModel(mydata, 'xgbTree')
-
-encodedDay.xgbTree
-```
-
-```{r}
-set.seed(8)
-encodedDay.M5 <- trainModel(mydata, 'M5')
-
-encodedDay.M5
-```
-
-```{r}
-set.seed(8)
-encodedDay.svmLinear <- trainModel(mydata, 'svmLinear')
-
-encodedDay.svmLinear
+encodedDay.models <- lapply(algorithms, trainModel, data = mydata)
 ```
