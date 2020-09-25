@@ -187,7 +187,7 @@ mydata <- mydata %>% inner_join(weather, by=c("date" = "DATE"))
 mydata$PRCP[is.na(mydata$PRCP)] <- 0
 
 mydata <- mydata %>% select(-X)
-
+mydata <- mydata %>% select(-c(date, Total_percipitation))
 ```
 
 ## Baseline model
@@ -195,17 +195,19 @@ mydata <- mydata %>% select(-X)
 
 ### Train-Validation-Test split
 ```{r}
-  train_end <- round(0.6 * nrow(mydata))
-  valid_end <- train_end + round(0.2 * nrow(mydata))
-  train <- mydata[1:train_end,]
-  valid <- mydata[(train_end+1):valid_end, ]
-  test <- mydata[(valid_end+1):nrow(mydata),]
+
+  trainPart <- createDataPartition(mydata$next_day, p=0.6, list=FALSE)
+  train <- mydata[trainPart,]
+  test <- mydata[-trainPart,]
+  validationPart <-  createDataPartition(test$next_day, p=0.5, list=FALSE)
+  validation <- mydata[validationPart, ]
+  test <- mydata[-validationPart,]
   
 ```
 
 
 ```{r}
-mydata <- mydata %>% select(-c(date, Total_percipitation))
+
 algorithms <- c('svmLinear', 'xgbTree', 'rf', 'brnn', 'bayesglm', 'treebag', 'lm')
 
 trainModel <- function(data, method) {
@@ -220,7 +222,7 @@ trainModel <- function(data, method) {
 
 }
 
-baseline.models <- lapply(algorithms, trainModel, data = mydata)
+baseline.models <- lapply(algorithms, trainModel, data = train)
 ```
 
 
@@ -246,7 +248,7 @@ Let's add columns that depict the change in temperature, pressure, etc.
 
 
 ```{r}
-delta.models <- lapply(algorithms, trainModel, data = mydata)
+delta.models <- lapply(algorithms, trainModel, data = train)
 ```
 
 ### Day encoding
@@ -263,5 +265,5 @@ mydata <- mydata %>% select(-c(year,month,day))
 ```{r}
 algorithms <- c('svmLinear', 'xgbTree', 'rf', 'brnn', 'bayesglm', 'treebag', 'lm')
 
-encodedDay.models <- lapply(algorithms, trainModel, data = mydata)
+encodedDay.models <- lapply(algorithms, trainModel, data = train)
 ```
