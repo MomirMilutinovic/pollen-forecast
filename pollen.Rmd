@@ -32,7 +32,7 @@ suppressPackageStartupMessages(library(leaflet))
 suppressPackageStartupMessages(library(lubridate))
 library(caret)
 library(tidyquant)
-library(RWeka)
+#library(RWeka)
 
 mydata <- read.csv("data/pollenDataMore.csv",
                    header = T,
@@ -225,6 +225,14 @@ trainModel <- function(data, method) {
 baseline.models <- lapply(algorithms, trainModel, data = train)
 ```
 
+```{r}
+  for (model in baseline.models) {
+    print(model)
+    cat("\n")
+  }
+```
+
+
 
 Export the split data
 ```{r}
@@ -243,6 +251,13 @@ Let's add columns that depict the change in temperature, pressure, etc.
   mydata <- mydata %>% mutate(delta_humid = Max__humidity - Min__humidity)
   mydata <- mydata %>% mutate(delta_pressure = Max_pressure - Min_pressure)
   mydata <- mydata %>% mutate(delta_wind = Max_wind - Min_wind)
+  
+  trainPart <- createDataPartition(mydata$next_day, p=0.6, list=FALSE)
+  train <- mydata[trainPart,]
+  test <- mydata[-trainPart,]
+  validationPart <-  createDataPartition(test$next_day, p=0.5, list=FALSE)
+  validation <- mydata[validationPart, ]
+  test <- mydata[-validationPart,]
 
 ```
 
@@ -251,19 +266,41 @@ Let's add columns that depict the change in temperature, pressure, etc.
 delta.models <- lapply(algorithms, trainModel, data = train)
 ```
 
+```{r}
+  for (model in delta.models) {
+    print(model)
+    cat("\n")
+  }
+```
+
 ### Day encoding
 We will try to use only the information of what day it is in a year. We are going to use the number of the day in the year.
 
 ```{r}
 mydata <- mydata %>% mutate(day_serial = yday(make_date(year = year, month = month, day = day)))
 mydata <- mydata %>% select(-c(year,month,day))
+
+  trainPart <- createDataPartition(mydata$next_day, p=0.6, list=FALSE)
+  train <- mydata[trainPart,]
+  test <- mydata[-trainPart,]
+  validationPart <-  createDataPartition(test$next_day, p=0.5, list=FALSE)
+  validation <- mydata[validationPart, ]
+  test <- mydata[-validationPart,]
 ```
 
 
 ### Retrain
 
 ```{r}
-algorithms <- c('svmLinear', 'xgbTree', 'rf', 'brnn', 'bayesglm', 'treebag', 'lm')
-
 encodedDay.models <- lapply(algorithms, trainModel, data = train)
 ```
+
+```{r}
+  for (model in encodedDay.models) {
+    print(model)
+    cat("\n")
+  }
+```
+
+
+
