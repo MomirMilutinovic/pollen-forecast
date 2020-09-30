@@ -208,7 +208,7 @@ mydata <- mydata %>% select(-c(date, Total_percipitation))
 
 ```{r}
 
-algorithms <- c('svmLinear', 'xgbTree', 'rf', 'brnn', 'bayesglm', 'treebag', 'lm')
+algorithms <- c('svmLinear', 'xgbDART', 'rf', 'knn', 'bayesglm', 'treebag')
 
 trainModel <- function(data, method) {
   set.seed(8)
