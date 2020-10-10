@@ -33,7 +33,7 @@ suppressPackageStartupMessages(library(lubridate))
 library(caret)
 library(tidyquant)
 library(mlbench)
-#library(RWeka)
+library(yardstick)
 
 mydata <- read.csv("data/pollenDataMore.csv",
                    header = T,
@@ -212,51 +212,55 @@ y <- mydata$next_day
 mydata <- mydata %>% select(-next_day) %>% select(-highlyCorrelated) %>% mutate(next_day = y) 
 ```
 
-
 ## Creating the models
 ### Train-Test split
-```{r}
 
+```{r}
+set.seed(8)
   trainPart <- createDataPartition(mydata$next_day, p=0.8, list=FALSE)
   train <- mydata[trainPart,]
   test <- mydata[-trainPart,]
+  #validationPart <- createDataPartition(test$next_day, p=0.5, list=FALSE)
+  #vaildation <- test[validationPart,]
+  #test <- test[-validationPart,]
+  
 ```
 
 ### Training
 ```{r}
 set.seed(8)
-fit.xgbDART <- train(next_day ~ ., data=train, method='xgbDART', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"))
+fit.xgbDART <- train(next_day ~ ., data=train, method='xgbDART', trControl = trainControl(method = "cv", number = 10), metric = 'RMSE', preProcess=c("center","scale"))
 
 set.seed(8)
 svmGrid <- data.frame(C=1:4*0.25)
-fit.svmLinear <- train(next_day ~ ., data=train, method='svmLinear', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"))
+fit.svmLinear <- train(next_day ~ ., data=train, method='svmLinear', trControl = trainControl(method = "cv", number = 10), metric = 'RMSE', preProcess=c("center","scale"))
 
 set.seed(8)
-fit.rf <- train(next_day ~ ., data=train, method='rf', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"), tuneLength=10)
+fit.rf <- train(next_day ~ ., data=train, method='rf', trControl = trainControl(method = "cv", number = 10), metric = 'RMSE', preProcess=c("center","scale"), tuneLength=10)
 
 set.seed(8)
-fit.knn <- train(next_day ~ ., data=train, method='knn', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"), tuneLength=15)
+fit.knn <- train(next_day ~ ., data=train, method='knn', trControl = trainControl(method = "cv", number = 10), metric = 'RMSE', preProcess=c("center","scale"), tuneLength=15)
 
 set.seed(8)
-fit.glmboost <- train(next_day ~ ., data=train, method='glmboost', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"))
+fit.glmboost <- train(next_day ~ ., data=train, method='glmboost', trControl = trainControl(method = "cv", number = 10), metric = 'RMSE', preProcess=c("center","scale"))
 
 set.seed(8)
-fit.lm <- train(next_day ~ ., data=train, method='lm', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"))
+fit.lm <- train(next_day ~ ., data=train, method='lm', trControl = trainControl(method = "cv", number = 10), metric = 'RMSE', preProcess=c("center","scale"))
 
 set.seed(8)
-fit.treebag <- train(next_day ~ ., data=train, method='treebag', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"))
+fit.treebag <- train(next_day ~ ., data=train, method='treebag', trControl = trainControl(method = "cv", number = 10), metric = 'RMSE', preProcess=c("center","scale"))
 
 set.seed(8)
-fit.ridge <- train(next_day ~ ., data=train, method='ridge', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"))
+fit.ridge <- train(next_day ~ ., data=train, method='ridge', trControl = trainControl(method = "cv", number = 10), metric = 'RMSE', preProcess=c("center","scale"))
 
 set.seed(8)
-fit.bagEarth <- train(next_day ~ ., data=train, method='bagEarth', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"))
+fit.bagEarth <- train(next_day ~ ., data=train, method='bagEarth', trControl = trainControl(method = "cv", number = 10), metric = 'RMSE', preProcess=c("center","scale"))
 
 set.seed(8)
-fit.lmStepAIC <- train(next_day ~ ., data=train, method='lmStepAIC', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"))
+fit.lmStepAIC <- train(next_day ~ ., data=train, method='lmStepAIC', trControl = trainControl(method = "cv", number = 10), metric = 'RMSE', preProcess=c("center","scale"))
 
 set.seed(8)
-fit.mlp <- train(next_day ~ ., data=train, method='mlp', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale")) 
+fit.mlp <- train(next_day ~ ., data=train, method='mlp', trControl = trainControl(method = "cv", number = 10), metric = 'RMSE', preProcess=c("center","scale")) 
 
 ```
 
@@ -271,7 +275,22 @@ results <- resamples(list(xgbDART=fit.xgbDART, svmLinear=fit.svmLinear, rf=fit.r
 summary(results)
 ```
 
+```{r}
+dotplot(results)
+```
 
+```{r}
+  predictions <- predict(fit.xgbDART, test)
+  prediction_results <- data.frame(actual = test$next_day, predicted=predictions)
+  print(rmse(prediction_results, actual, predicted))
+```
+
+```{r}
+  prediction_results %>% ggplot(aes(x=actual, y=predicted)) +
+    geom_point() +
+    geom_abline() +
+    geom_smooth()
+```
 
 
 
