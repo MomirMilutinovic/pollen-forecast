@@ -32,6 +32,7 @@ suppressPackageStartupMessages(library(leaflet))
 suppressPackageStartupMessages(library(lubridate))
 library(caret)
 library(tidyquant)
+library(mlbench)
 #library(RWeka)
 
 mydata <- read.csv("data/pollenDataMore.csv",
@@ -92,15 +93,14 @@ The more recent data seems to be more sparse, but we won't be dealing with that 
 
 ```{r}
   mydata %>% 
-  filter(allergen_name %in% c("URTICACEAE", "PLATANGO")) %>%
+  filter(allergen_name %in% c("URTICACEAE", "AMBROSIA")) %>%
   ggplot(aes(as.Date(date), value, colour=as.factor(allergen_name))) + 
     geom_point() +
     xlab("Date") +
     ylab("Concentration") +
     ggtitle("Concentration of URTICACEAE over time")
 ```
-
-We will take a look at only the ambrosia data since different allergens might have different distributions as pictured above.
+We will take a look at only the ambrosia data since different allergens might have different distributions as pictured above. We can also see some evenly spaced spikes. This is to be expected since there are pollen seasons during a year.
 
 ```{r}
 mydata <- mydata %>% filter(allergen_name == "URTICACEAE")
@@ -140,25 +140,6 @@ Separate the year, month and day into separate columns
   mydata <- mydata[is.na(mydata$next_day) == FALSE,]
 ```
 
-# Analysing the readings
-```{r, echo=FALSE}
-# TODO 
-# Compare two allergens and show that they have different patterns.
-```
-
-We will take a look at only the ambrosia data since different allergens might have different distributions as pictured above.
-
-```{r, echo=FALSE}
-
-ggplot(mydata, aes(as.Date(date), value)) + 
-  geom_point() +
-  xlab("Date") +
-  ylab("Concentration") +
-  ggtitle("Concentration of URTICACEAE over time")
-```
-
-We can see some evenly spaced spikes. This is to be expected since there are pollen seasons during a year.
-
 Let's see the distribution of the concentration
 ```{r, echo=FALSE}
   ggplot(mydata, aes(x = value)) + 
@@ -190,59 +171,9 @@ mydata <- mydata %>% select(-X)
 mydata <- mydata %>% select(-c(date, Total_percipitation))
 ```
 
-## Baseline model
-
-
-### Train-Validation-Test split
-```{r}
-
-  trainPart <- createDataPartition(mydata$next_day, p=0.6, list=FALSE)
-  train <- mydata[trainPart,]
-  test <- mydata[-trainPart,]
-  validationPart <-  createDataPartition(test$next_day, p=0.5, list=FALSE)
-  validation <- mydata[validationPart, ]
-  test <- mydata[-validationPart,]
-  
-```
-
-
-```{r}
-
-algorithms <- c('svmLinear', 'xgbDART', 'rf', 'knn', 'bayesglm', 'treebag')
-
-trainModel <- function(data, method) {
-  set.seed(8)
-  train(next_day ~ .,
-    data=data,
-    method=method,
-    trControl = trainControl(method = "cv", number = 5),
-    metric = 'RMSE',
-    preProcess=c("center","scale")
-  )
-
-}
-
-baseline.models <- lapply(algorithms, trainModel, data = train)
-```
-
-```{r}
-  for (model in baseline.models) {
-    print(model)
-    cat("\n")
-  }
-```
-
-
-
-Export the split data
-```{r}
-  #write.csv(train, "data/train.csv")
-  #write.csv(valid, "data/valid.csv")
-  #write.csv(test, "data/test.csv")
-```
-
 ## Feature engineering
 
+### Change in temperature, pressure, etc.
 Let's add columns that depict the change in temperature, pressure, etc.
 
 ```{r}
@@ -252,55 +183,95 @@ Let's add columns that depict the change in temperature, pressure, etc.
   mydata <- mydata %>% mutate(delta_pressure = Max_pressure - Min_pressure)
   mydata <- mydata %>% mutate(delta_wind = Max_wind - Min_wind)
   
-  trainPart <- createDataPartition(mydata$next_day, p=0.6, list=FALSE)
-  train <- mydata[trainPart,]
-  test <- mydata[-trainPart,]
-  validationPart <-  createDataPartition(test$next_day, p=0.5, list=FALSE)
-  validation <- mydata[validationPart, ]
-  test <- mydata[-validationPart,]
-
 ```
 
-
-```{r}
-delta.models <- lapply(algorithms, trainModel, data = train)
-```
-
-```{r}
-  for (model in delta.models) {
-    print(model)
-    cat("\n")
-  }
-```
 
 ### Day encoding
 We will try to use only the information of what day it is in a year. We are going to use the number of the day in the year.
 
 ```{r}
-mydata <- mydata %>% mutate(day_serial = yday(make_date(year = year, month = month, day = day)))
-mydata <- mydata %>% select(-c(year,month,day))
+  mydata <- mydata %>% mutate(day_serial = yday(make_date(year = year, month = month, day = day)))
+  mydata <- mydata %>% select(-c(year,month,day))
+```
 
-  trainPart <- createDataPartition(mydata$next_day, p=0.6, list=FALSE)
+### Multivariate plots
+```{r}
+  correlationMatrix <- mydata %>% select(-next_day) %>% cor
+  corrplot::corrplot(correlationMatrix)
+```
+Some of the meteorological variables seem to be highly correlated. Let's remove them.
+`
+
+```{r}
+set.seed(8)
+# find attributes that are highly corrected (ideally >0.75)
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75)
+# print indexes of highly correlated attributes
+print(highlyCorrelated)
+y <- mydata$next_day
+mydata <- mydata %>% select(-next_day) %>% select(-highlyCorrelated) %>% mutate(next_day = y) 
+```
+
+
+## Creating the models
+### Train-Test split
+```{r}
+
+  trainPart <- createDataPartition(mydata$next_day, p=0.8, list=FALSE)
   train <- mydata[trainPart,]
   test <- mydata[-trainPart,]
-  validationPart <-  createDataPartition(test$next_day, p=0.5, list=FALSE)
-  validation <- mydata[validationPart, ]
-  test <- mydata[-validationPart,]
+```
+
+### Training
+```{r}
+set.seed(8)
+fit.xgbDART <- train(next_day ~ ., data=train, method='xgbDART', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"))
+
+set.seed(8)
+svmGrid <- data.frame(C=1:4*0.25)
+fit.svmLinear <- train(next_day ~ ., data=train, method='svmLinear', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"))
+
+set.seed(8)
+fit.rf <- train(next_day ~ ., data=train, method='rf', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"), tuneLength=10)
+
+set.seed(8)
+fit.knn <- train(next_day ~ ., data=train, method='knn', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"), tuneLength=15)
+
+set.seed(8)
+fit.glmboost <- train(next_day ~ ., data=train, method='glmboost', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"))
+
+set.seed(8)
+fit.lm <- train(next_day ~ ., data=train, method='lm', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"))
+
+set.seed(8)
+fit.treebag <- train(next_day ~ ., data=train, method='treebag', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"))
+
+set.seed(8)
+fit.ridge <- train(next_day ~ ., data=train, method='ridge', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"))
+
+set.seed(8)
+fit.bagEarth <- train(next_day ~ ., data=train, method='bagEarth', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"))
+
+set.seed(8)
+fit.lmStepAIC <- train(next_day ~ ., data=train, method='lmStepAIC', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale"))
+
+set.seed(8)
+fit.mlp <- train(next_day ~ ., data=train, method='mlp', trControl = trainControl(method = "cv", number = 5), metric = 'RMSE', preProcess=c("center","scale")) 
+
 ```
 
 
-### Retrain
+### Model selection
 
 ```{r}
-encodedDay.models <- lapply(algorithms, trainModel, data = train)
+# summarize accuracy of models
+results <- resamples(list(xgbDART=fit.xgbDART, svmLinear=fit.svmLinear, rf=fit.rf, knn=fit.knn,
+                          glmboost=fit.glmboost, lm=fit.lm, treebag=fit.treebag, ridge=fit.ridge, 
+                          bagEarth=fit.bagEarth, lmStepAIC=fit.lmStepAIC, mlp=fit.mlp))
+summary(results)
 ```
 
-```{r}
-  for (model in encodedDay.models) {
-    print(model)
-    cat("\n")
-  }
-```
+
 
 
 
