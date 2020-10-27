@@ -291,6 +291,134 @@ dotplot(results)
     geom_abline() +
     geom_smooth()
 ```
+```{r}
+  predictions <- predict(fit.lm, test)
+  prediction_results <- data.frame(actual = test$next_day, predicted=predictions)
+  print(rmse(prediction_results, actual, predicted))
+```
+
+```{r}
+  prediction_results %>% ggplot(aes(x=actual, y=predicted)) +
+    geom_point() +
+    geom_abline() +
+    geom_smooth()
+```
+
+```{r}
+  predictions <- predict(fit.rf, test)
+  prediction_results <- data.frame(actual = test$next_day, predicted=predictions)
+  print(rmse(prediction_results, actual, predicted))
+```
+
+```{r}
+  prediction_results %>% ggplot(aes(x=actual, y=predicted)) +
+    geom_point() +
+    geom_abline() +
+    geom_smooth()
+```
 
 
+```{r}
+  predictions <- predict(fit.ridge, test)
+  prediction_results <- data.frame(actual = test$next_day, predicted=predictions)
+  print(rmse(prediction_results, actual, predicted))
+```
+
+```{r}
+  prediction_results %>% ggplot(aes(x=actual, y=predicted)) +
+    geom_point() +
+    geom_abline() +
+    geom_smooth()
+```
+
+```{r}
+  predictions <- predict(fit.svmLinear, test)
+  prediction_results <- data.frame(actual = test$next_day, predicted=predictions)
+  print(rmse(prediction_results, actual, predicted))
+```
+
+```{r}
+  prediction_results %>% ggplot(aes(x=actual, y=predicted)) +
+    geom_point() +
+    geom_abline() +
+    geom_smooth()
+```
+
+```{r}
+  predictions <- predict(fit.knn, test)
+  prediction_results <- data.frame(actual = test$next_day, predicted=predictions)
+  print(rmse(prediction_results, actual, predicted))
+```
+
+```{r}
+  prediction_results %>% ggplot(aes(x=actual, y=predicted)) +
+    geom_point() +
+    geom_abline() +
+    geom_smooth()
+```
+
+```{r}
+  predictions <- predict(fit.mlp, test)
+  prediction_results <- data.frame(actual = test$next_day, predicted=predictions)
+  print(rmse(prediction_results, actual, predicted))
+```
+
+```{r}
+  prediction_results %>% ggplot(aes(x=actual, y=predicted)) +
+    geom_point() +
+    geom_abline() +
+    geom_smooth()
+```
+
+```{r}
+  predictions <- predict(fit.lmStepAIC, test)
+  prediction_results <- data.frame(actual = test$next_day, predicted=predictions)
+  print(rmse(prediction_results, actual, predicted))
+```
+
+```{r}
+  prediction_results %>% ggplot(aes(x=actual, y=predicted)) +
+    geom_point() +
+    geom_abline() +
+    geom_smooth()
+```
+
+```{r}
+  predictions <- predict(fit.bagEarth, test)
+  prediction_results <- data.frame(actual = test$next_day, predicted=predictions)
+  print(rmse(prediction_results, actual, predicted))
+```
+
+```{r}
+  prediction_results %>% ggplot(aes(x=actual, y=predicted)) +
+    geom_point() +
+    geom_abline() +
+    geom_smooth()
+```
+
+```{r}
+  predictions <- predict(fit.treebag, test)
+  prediction_results <- data.frame(actual = test$next_day, predicted=predictions)
+  print(rmse(prediction_results, actual, predicted))
+```
+
+```{r}
+  prediction_results %>% ggplot(aes(x=actual, y=predicted)) +
+    geom_point() +
+    geom_abline() +
+    geom_smooth()
+```
+
+```{r}
+  predictions <- predict(fit.glmboost, test)
+  prediction_results <- data.frame(actual = test$next_day, predicted=predictions)
+  print(rmse(prediction_results, actual, predicted))
+```
+
+```{r}
+  prediction_results %>% ggplot(aes(x=actual, y=predicted)) +
+    geom_point() +
+    geom_abline() +
+    geom_smooth()
+```
 
