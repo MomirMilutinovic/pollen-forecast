@@ -422,3 +422,19 @@ dotplot(results)
     geom_smooth()
 ```
 
+Interestingly, every model's predictions, except mlp's, seem to flatten out at a particular actual value.
+
+### Exporting the models
+```{r}
+  saveRDS(object = fit.xgbDART, file = "fit.xgbDART.rds")
+  saveRDS(object = fit.bagEarth, file = "fit.bagEarth.rds")
+  saveRDS(object = fit.glmboost, file = "fit.glmboost.rds")
+  saveRDS(object = fit.knn, file = "fit.knn.rds")
+  saveRDS(object = fit.lm, file = "fit.lm.rds")
+  saveRDS(object = fit.lmStepAIC, file = "fit.lmStepAIC.rds")
+  saveRDS(object = fit.mlp, file = "fit.mlp.rds")
+  saveRDS(object = fit.rf, file = "fit.rf.rds")
+  saveRDS(object = fit.ridge, file = "fit.rigge.rds")
+  saveRDS(object = fit.treebag, file = "fit.treebag.rds")
+```
+
