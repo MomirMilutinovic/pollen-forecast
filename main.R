@@ -1,0 +1,8 @@
+options(Ncpus = 8)
+install.packages("plumber")
+install.packages("xgboost")
+install.packages("caret")
+install.packages("tidyverse")
+install.packages("magrittr")
+library(plumber)
+plumb(file='plumber.R')$run(host="0.0.0.0", port=5762)
