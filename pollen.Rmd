@@ -30,10 +30,12 @@ suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(leaflet))
 suppressPackageStartupMessages(library(lubridate))
-library(caret)
-library(tidyquant)
-library(mlbench)
-library(yardstick)
+suppressPackageStartupMessages(library(caret))
+suppressPackageStartupMessages(library(tidyquant))
+suppressPackageStartupMessages(library(mlbench))
+suppressPackageStartupMessages(library(yardstick))
+suppressPackageStartupMessages(library(xts))
+suppressPackageStartupMessages(library(gridExtra))
 
 mydata <- read.csv("data/pollenDataMore.csv",
                    header = T,
@@ -63,7 +65,8 @@ However, none of them are in Belgrade. The two stations in Belgrade are *БЕО�
 
 ```{r, echo=FALSE}
 ggplot(mydata, aes(x=location_name,  colour = as.factor(location_name), fill = as.factor(location_name))) +
-  geom_bar()
+  geom_bar() +
+  theme_minimal()
 ```
 
 ```{r}
@@ -80,14 +83,16 @@ mydata <- mydata %>% filter(location_name == c("БЕОГРАД - ЗЕЛЕНО Б
 ggplot(mydata, aes(x = allergen_name, colour = as.factor(allergen_name), fill = as.factor(allergen_name))) +
   geom_bar() +
   xlab("Allergen") +
-  ylab("Count")
+  ylab("Count") +
+  theme_minimal()
 ```
 
 We seem to have almost even numbers of data points for each allegen.
 
 ```{r, echo=FALSE}
 ggplot(mydata, aes(x = as.Date(date))) +
-  geom_histogram(postion = "dodge")
+  geom_histogram(postion = "dodge") +
+  theme_minimal()
 ```
 The more recent data seems to be more sparse, but we won't be dealing with that here.
 
@@ -98,13 +103,108 @@ The more recent data seems to be more sparse, but we won't be dealing with that 
     geom_point() +
     xlab("Date") +
     ylab("Concentration") +
-    ggtitle("Concentration of URTICACEAE over time")
+    ggtitle("Concentration of URTICACEAE vs Concentration of AMBROSIA over time") +
+    scale_color_discrete(name = "Allergen") +
+    theme_minimal()
 ```
 We will take a look at only the ambrosia data since different allergens might have different distributions as pictured above. We can also see some evenly spaced spikes. This is to be expected since there are pollen seasons during a year.
 
 ```{r}
 mydata <- mydata %>% filter(allergen_name == "URTICACEAE")
 ```
+
+Let's join the dates from 2020-04-14 and 2020-08-01, and check how much missing data we have.
+```{r}
+month.df <- data.frame(date = seq(as.Date("2016-04-14"), as.Date("2020-08-01"), "days"))
+mydata$date <- as.Date(mydata$date)
+
+mydata <- left_join(month.df, mydata, by = "date")
+```
+
+Let's visualize only the urticaceae data on a line plot. We will also check the distribution of missing values over months on a bar plot.
+```{r}
+mydata %>% ggplot(aes(x = date, y = value)) + 
+  geom_line() +
+  ggtitle("Urticaceae concetration over time") +
+  xlab("Time") +
+  ylab("Value") +
+  theme_minimal()
+```
+
+```{r}
+missingVals <- mydata[is.na(mydata$value),] %>% mutate(month = factor(month.abb[lubridate::month(date)], levels = month.abb))
+                                                       
+missingVals %>% ggplot(aes(x=month)) +
+    geom_bar() +
+    theme(text = element_text(size=12)) +
+    ggtitle("Missing values by month") +
+    xlab("Month") +
+    ylab("Missing value Count") +
+    theme_minimal()
+```
+
+We can see that most of the missing values are from September to May. The reason for this is that pollen concentrations are usally not monitored during there is no or very little pollen in the air during that time.
+
+We will plot the mean concentrations and their densities for each month with the missing values removed.
+
+```{r}
+mydataZeroNAs <- mydata %>% filter(!is.na(value))
+
+monthlySummary <- mydataZeroNAs %>% mutate(month = factor(month.abb[lubridate::month(date)], levels = month.abb)) %>% group_by(month) %>% summarise(avgConcentration = mean(value))
+
+monthlySummary %>% ggplot(aes(x=month, y=avgConcentration)) +
+    geom_col() +
+    theme(text = element_text(size=12)) +
+    ggtitle("Mean concentration by month (with missing values removed)") +
+    xlab("Month") +
+    ylab("Mean concentration") +
+    theme_minimal()
+
+```
+
+```{r, fig.width=15, fig.height=20}
+  createPlotMonth <- function (month) { densityplot(~value, filter(mydata, lubridate::month(date)==month)) }
+  #TODO Put months
+  plot_list <- lapply(1:12, createPlotMonth)
+  do.call("grid.arrange", c(plot_list, ncol = 3))   
+```
+
+Since the values are supposed to be low anyway for the missing data, the last observation carried forward approach is, therefore, a reasonable approach to imputing the missing values.
+```{r}
+mydata <- mydata %>%  na.locf()
+nrow(mydata[is.na(mydata$value),])
+```
+
+Let's plot the concentrations again
+```{r}
+  mydata %>% ggplot(aes(x = date, y = value)) + 
+    geom_line() +
+    ggtitle("Urticaceae concetration over time") +
+    xlab("Time") +
+    ylab("Value") +
+    theme_minimal()
+```
+
+And the monthly means and densities...
+```{r}
+monthlySummary <- mydata %>% mutate(month = factor(month.abb[lubridate::month(date)], levels = month.abb)) %>% group_by(month) %>% summarise(avgConcentration = mean(value))
+
+monthlySummary %>% ggplot(aes(x=month, y=avgConcentration)) +
+    geom_col() +
+    theme(text = element_text(size=12)) +
+    ggtitle("Mean concentration by month (filling missing values with last observation)") +
+    xlab("Month") +
+    ylab("Mean concentration") +
+    theme_minimal()
+```
+
+```{r, fig.width=15, fig.height=20}
+  #TODO Put months
+  plot_list <- lapply(1:12, createPlotMonth)
+  do.call("grid.arrange", c(plot_list, ncol = 3))   
+```
+
+Since the monthly means did not change our imputation vas successful.
 
 ### Formatting date and time
 
@@ -230,13 +330,24 @@ y <- mydata$next_day
 mydata <- mydata %>% select(-next_day) %>% select(-highlyCorrelated) %>% mutate(next_day = y) 
 ```
 
+```{r}
+set.seed(8)
+  trainPart <- round(nrow(mydata) * 0.8)
+  train <- mydata[1:trainPart,]
+  test <- mydata[-(1:trainPart),]
+  #validationPart <- createDataPartition(test$next_day, p=0.5, list=FALSE)
+  #vaildation <- test[validationPart,]
+  #test <- test[-validationPart,]
+  
+```
+
 ### Training
 ```{r}
 # fit.rf <- train(next_day ~ ., data=train, method='rf', trControl = trainControl(method = "timeslice", initialWindow = 600, horizon = 100), metric = 'RMSE', preProcess=c("center","scale"), tuneLength=10)
-tr_control <- trainControl(method = "timeslice", initialWindow = 415, horizon = 30, skip = 30)
+tr_control <- trainControl(method = "timeslice", initialWindow = 415, horizon = 30, skip = 30, fixedWindow = FALSE, verboseIter= TRUE)
 
-set.seed(8)
-fit.xgbDART <- train(next_day ~ ., data=train, method='xgbDART', trControl = tr_control, metric = 'RMSE', preProcess=c("center","scale"))
+#set.seed(8)
+#fit.xgbDART <- train(next_day ~ ., data=train, method='xgbDART', trControl = tr_control, metric = 'RMSE', #preProcess=c("center","scale"), tuneLength=15)
 
 set.seed(8)
 svmGrid <- data.frame(C=1:4*0.25)
@@ -445,3 +556,16 @@ Interestingly, every model's predictions, except mlp's, seem to flatten out at a
   saveRDS(object = fit.treebag, file = "fit.treebag.rds")
 ```
 
+## Feature importance
+Let's see the feature importance.
+```{r}
+  varImp(fit.rf)
+  plot(varImp(fit.rf))
+```
+
+## Training random forest with only the most important features
+```{r}
+set.seed(8)
+fit.rf.fewerFeatures <- train(next_day ~ ., data=new.train, method='rf', trControl = tr_control, metric = 'RMSE', preProcess=c("center","scale"), tuneLength=10)
+fit.rf.fewerFeatures
+```
